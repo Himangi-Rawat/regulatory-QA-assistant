@@ -44,7 +44,7 @@ def embed_texts(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT", batch_d
     client = get_client()
     vectors = []
     for text in texts:
-        for attempt in range(5):
+        for attempt in range(8):
             try:
                 result = client.models.embed_content(
                     model=EMBEDDING_MODEL,
@@ -58,12 +58,12 @@ def embed_texts(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT", batch_d
                 break
             except Exception as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    wait = 5 * (attempt + 1)
+                    wait = 8 * (attempt + 1)  # 8s, 16s, 24s... up to ~5.5 min total across 8 tries
                     time.sleep(wait)
                 else:
                     raise
         else:
-            raise RuntimeError(f"Failed to embed chunk after 5 retries: {text[:50]}...")
+            raise RuntimeError(f"Failed to embed chunk after 8 retries: {text[:50]}...")
 
         if batch_delay:
             time.sleep(batch_delay)
