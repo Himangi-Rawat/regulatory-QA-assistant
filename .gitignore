@@ -1,0 +1,7 @@
+.streamlit/secrets.toml
+temp_uploads/
+saved_index.faiss
+saved_index.pkl
+saved_index_files.json
+__pycache__/
+*.pyc
