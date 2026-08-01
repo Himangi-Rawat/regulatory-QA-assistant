@@ -31,27 +31,43 @@ def get_client() -> genai.Client:
     return _client
 
 
-def embed_texts(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT", batch_delay: float = 0.0) -> np.ndarray:
+def embed_texts(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT", batch_delay: float = 0.7) -> np.ndarray:
     """
     task_type = 'RETRIEVAL_DOCUMENT' when embedding chunks to store,
     'RETRIEVAL_QUERY' when embedding the user's question.
+
+    batch_delay defaults to 0.7s between requests to stay under the free
+    tier's 100-requests-per-minute embedding limit (60s / 100 = 0.6s min).
+    If we still hit a rate limit (e.g. from other traffic sharing the key),
+    we back off and retry rather than failing the whole upload.
     """
     client = get_client()
     vectors = []
     for text in texts:
-        result = client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=text,
-            config=types.EmbedContentConfig(
-                task_type=task_type,
-                output_dimensionality=768,  # keep it matching EMBED_DIM above
-            ),
-        )
-        vectors.append(result.embeddings[0].values)
+        for attempt in range(5):
+            try:
+                result = client.models.embed_content(
+                    model=EMBEDDING_MODEL,
+                    contents=text,
+                    config=types.EmbedContentConfig(
+                        task_type=task_type,
+                        output_dimensionality=768,
+                    ),
+                )
+                vectors.append(result.embeddings[0].values)
+                break
+            except Exception as e:
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                    wait = 5 * (attempt + 1)
+                    time.sleep(wait)
+                else:
+                    raise
+        else:
+            raise RuntimeError(f"Failed to embed chunk after 5 retries: {text[:50]}...")
+
         if batch_delay:
             time.sleep(batch_delay)
     return np.array(vectors, dtype="float32")
-
 
 class VectorStore:
     """Wraps a FAISS index + the chunk metadata list it corresponds to."""

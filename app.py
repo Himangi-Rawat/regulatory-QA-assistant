@@ -192,7 +192,7 @@ with st.sidebar:
                     try:
                         pages = extract_pages(tmp_path)
                         chunks = chunk_all_pages(pages)
-                        store.add(chunks, batch_delay=0.05)
+                        store.add(chunks, batch_delay=0.7)
                         st.session_state.processed_files.append(f.name)
                         st.success(f"Indexed {f.name}: {len(pages)} pages -> {len(chunks)} chunks.")
                     except ValueError as e:
