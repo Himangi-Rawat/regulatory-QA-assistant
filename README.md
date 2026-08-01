@@ -273,20 +273,6 @@ streamlit run app.py
 
 ---
 
-# 📸 Screenshots
-
-*(Add screenshots here)*
-
-Example:
-
-```
-images/home.png
-images/upload.png
-images/chat.png
-images/source.png
-```
-
----
 
 # 👩‍💻 Author
 
