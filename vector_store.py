@@ -31,43 +31,56 @@ def get_client() -> genai.Client:
     return _client
 
 
-def embed_texts(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT", batch_delay: float = 0.7) -> np.ndarray:
+def embed_texts(
+    texts: list[str],
+    task_type: str = "RETRIEVAL_DOCUMENT",
+    batch_size: int = 50,
+    batch_delay: float = 1.0,
+) -> np.ndarray:
     """
+    Embed a list of texts using Gemini's embedding API, batching many texts
+    into each API call instead of one call per chunk.
+
     task_type = 'RETRIEVAL_DOCUMENT' when embedding chunks to store,
     'RETRIEVAL_QUERY' when embedding the user's question.
-
-    batch_delay defaults to 0.7s between requests to stay under the free
-    tier's 100-requests-per-minute embedding limit (60s / 100 = 0.6s min).
-    If we still hit a rate limit (e.g. from other traffic sharing the key),
-    we back off and retry rather than failing the whole upload.
     """
     client = get_client()
-    vectors = []
-    for text in texts:
+    all_vectors = []
+
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        last_error_message = None
+
         for attempt in range(8):
             try:
                 result = client.models.embed_content(
                     model=EMBEDDING_MODEL,
-                    contents=text,
+                    contents=batch,
                     config=types.EmbedContentConfig(
                         task_type=task_type,
                         output_dimensionality=768,
                     ),
                 )
-                vectors.append(result.embeddings[0].values)
+                all_vectors.extend([emb.values for emb in result.embeddings])
                 break
             except Exception as e:
-                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                last_error_message = str(e)  # save the message now — Python clears 'e' once we leave this block
+                if "429" in last_error_message or "RESOURCE_EXHAUSTED" in last_error_message:
                     wait = 8 * (attempt + 1)  # 8s, 16s, 24s... up to ~5.5 min total across 8 tries
                     time.sleep(wait)
                 else:
                     raise
         else:
-            raise RuntimeError(f"Failed to embed chunk after 8 retries: {text[:50]}...")
+            raise RuntimeError(
+                f"Failed to embed batch starting at chunk {i} after 8 retries. "
+                f"Last error was: {last_error_message}"
+            )
 
         if batch_delay:
-            time.sleep(batch_delay)
-    return np.array(vectors, dtype="float32")
+            time.sleep(batch_delay)  # brief pause between batches, not between every chunk
+
+    return np.array(all_vectors, dtype="float32")
+
 
 class VectorStore:
     """Wraps a FAISS index + the chunk metadata list it corresponds to."""
@@ -76,11 +89,13 @@ class VectorStore:
         self.index = faiss.IndexFlatL2(EMBED_DIM)
         self.chunks: list[Chunk] = []
 
-    def add(self, chunks: list[Chunk], batch_delay: float = 0.0):
+    def add(self, chunks: list[Chunk], batch_size: int = 50, batch_delay: float = 1.0):
         if not chunks:
             return
         texts = [c.text for c in chunks]
-        vectors = embed_texts(texts, task_type="RETRIEVAL_DOCUMENT", batch_delay=batch_delay)
+        vectors = embed_texts(
+            texts, task_type="RETRIEVAL_DOCUMENT", batch_size=batch_size, batch_delay=batch_delay
+        )
         self.index.add(vectors)
         self.chunks.extend(chunks)
 
