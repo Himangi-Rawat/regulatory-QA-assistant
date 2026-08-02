@@ -65,7 +65,13 @@ def embed_texts(
                 break
             except Exception as e:
                 last_error_message = str(e)  # save the message now — Python clears 'e' once we leave this block
-                if "429" in last_error_message or "RESOURCE_EXHAUSTED" in last_error_message:
+                if "PerDay" in last_error_message:
+                    # Daily quota exhausted — retrying won't help until it resets tomorrow.
+                    raise RuntimeError(
+                        "Daily API quota exhausted for today. This resets at midnight "
+                        "Pacific Time (Google's free tier limit, not a bug). Try again later."
+                    )
+                elif "429" in last_error_message or "RESOURCE_EXHAUSTED" in last_error_message:
                     wait = 8 * (attempt + 1)  # 8s, 16s, 24s... up to ~5.5 min total across 8 tries
                     time.sleep(wait)
                 else:
