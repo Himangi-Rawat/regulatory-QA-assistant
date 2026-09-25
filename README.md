@@ -16,6 +16,16 @@ The **Regulatory Q&A Assistant** simplifies this process by allowing users to up
 
 ---
 
+## 🌐 Live Demo
+
+Try the deployed Regulatory Q&A Assistant here:
+
+👉 **[Open Regulatory Q&A Assistant](https://regulatory-app-assistant-36ixh5twudjfrpebic6wvw.streamlit.app/)**
+
+The deployed application allows users to upload regulatory/compliance PDFs and ask natural-language questions. The system retrieves relevant document sections and generates citation-backed answers with page-level sources.
+
+---
+
 ## ✨ Features
 
 - 📄 Upload one or multiple regulatory/compliance PDFs
